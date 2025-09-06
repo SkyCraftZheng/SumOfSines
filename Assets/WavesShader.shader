@@ -43,17 +43,22 @@ Shader "Custom/Waves Shader"
             };
 
             Interpolators MyVertexProgram(VertexData v) {
-                float _SineAmplitudes[5]  = {0.4, 0.2, 0.1, 0.05, 0.025};
-                float _SineFrequencies[5] = {1, 2, 3, 4, 5};
-                float _SineSpeeds[5] = {30, 40, 50, 60, 70};
+                float _SineAmplitudes[5]  = {0.21, 0.15, 0.1, 0.18, 0.09};
+                float _SineFrequencies[5] = {1, 2, 3, 1.3, 2.1};
+                float _SineSpeeds[5] = {30, 40, 50, 34, 42};
 
                 Interpolators i;
-                i.position = UnityObjectToClipPos(v.position);
+                float3 position = mul(unity_ObjectToWorld, v.position);
                 float displacement = 0;
-                for(int j = 0; j < 5; ++j){
-                    displacement += _SineAmplitudes[j] * sin(i.position.x * _SineFrequencies[j] + _Time * _SineSpeeds[j]);
+                for(int j = 0; j < 3; ++j){
+                    displacement += _SineAmplitudes[j] * sin(position.x * _SineFrequencies[j] + _Time * _SineSpeeds[j]);
                 }
-                i.position.y += displacement;
+                for(int j = 3; j < 5; ++j){
+                    displacement += _SineAmplitudes[j] * sin(position.z * _SineFrequencies[j] + _Time * _SineSpeeds[j]);
+                }
+                position.y += displacement;
+                position = mul(unity_WorldToObject, position);
+                i.position = UnityObjectToClipPos(position);
                 i.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 i.normal = UnityObjectToWorldNormal(v.normal);
                 i.normal = normalize(i.normal);
