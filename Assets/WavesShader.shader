@@ -11,6 +11,14 @@ Shader "Custom/Waves Shader"
         _MainTex ("Albedo", 2D) = "white" {}
         _Smoothness ("Smoothness", Range(0, 1)) = 0.5
         [Gamma] _Metallic ("Metallic", Range(0, 1)) = 0
+        _NumberOfWaves("Number of Waves", Integer) = 32
+        _Seed ("Seed", Vector) = (0, 0, 0, 0) //xy is the seed, zw is the iterator
+        _StartingAmplitude ("Starting Amplitude", Range(0.1, 5)) = 1
+        _AmplitudeFactor ("Amplitude Factor", Range(0, 1)) = 0.82
+        _StartingFrequency ("Starting Frequency", Range(0.1, 5)) = 1
+        _FrequencyFactor ("Frequency Factor", Range(1, 2)) = 1.18
+        _StartingSpeed ("Starting Speed", Range(1, 100)) = 5
+        _SpeedRamp ("Speed Ramp", Range(1, 2)) = 1.07
     }
 
     SubShader {
@@ -33,6 +41,12 @@ Shader "Custom/Waves Shader"
             float _Smoothness;
             float _Metallic;
 
+            float _NumberOfWaves;
+            float4 _Seed;
+            float _StartingAmplitude, _AmplitudeFactor;
+            float _StartingFrequency, _FrequencyFactor;
+            float _StartingSpeed, _SpeedRamp;
+
             struct Interpolators {
                 float4 position : SV_POSITION;
                 float2 uv : TEXCOORD0;
@@ -43,6 +57,11 @@ Shader "Custom/Waves Shader"
                 float4 position : POSITION;
                 float2 uv : TEXCOORD0;
             };
+
+            float RandomRange_float(float2 Seed, float Min, float Max){
+                float randomno =  frac(sin(dot(Seed, float2(23.14069263277926, 2.665144142690225)))*43758.5453);
+                return lerp(Min, Max, randomno);
+            }
 
             Interpolators MyVertexProgram(VertexData v) {
                 float _SineAmplitudes[5]  = {0.21, 0.15, 0.11, 0.17, 0.09};
@@ -57,17 +76,36 @@ Shader "Custom/Waves Shader"
 
                 Interpolators i;
                 float3 position = mul(unity_ObjectToWorld, v.position).xyz;
-                float displacement = 0;
-                for(int j = 0; j < 5; ++j){
+
+                float4 seed = _Seed;
+                float amp = _StartingAmplitude;
+                float freq = _StartingFrequency;
+                float speed = _StartingSpeed;
+                float displacement = - amp * _NumberOfWaves / 15;
+                float angle;
+                float2 direction;
+                for(int j = 0; j < _NumberOfWaves; ++j){
                     // y = alpha * sin(d*(x,z) + t*phi)
                     /*
                     displacement += _SineAmplitudes[j] * sin(
                         dot(_SineDirections[j], position.xyz) * _SineFrequencies[j] + _Time * _SineSpeeds[j]);
                     */
                     // y = alpha * e^(sin(d*(x,z) + t*phi)-1)
+                    /*
                     displacement += _SineAmplitudes[j] * pow(2.718282, sin(
                         dot(_SineDirections[j], position.xyz) * _SineFrequencies[j] + _Time * _SineSpeeds[j]
                     ) - 1);
+                    */
+
+                    // Brownian motion
+                    angle = RandomRange_float(seed.xy, 0, 360);
+                    direction = float2(sin(angle), cos(angle));
+                    seed += float4(seed.zw, 0, 0);
+                    displacement += amp * pow(2.7818282, sin(dot(direction, position.xz) * freq + _Time * speed) - 1);
+                    amp *= _AmplitudeFactor;
+                    freq *= _FrequencyFactor;
+                    speed *= _SpeedRamp;
+
                 }
                 position.y += displacement;
                 i.worldPos = position;
@@ -90,14 +128,32 @@ Shader "Custom/Waves Shader"
                 float df, dfdx, dfdz, inner;
                 dfdx = 0;
                 dfdz = 0;
-                for(int j = 0; j < 5; ++j){
-                    inner = dot(_SineDirections[j], i.worldPos) * _SineFrequencies[j] + _Time * _SineSpeeds[j];
+                float4 seed = _Seed;
+                float amp = _StartingAmplitude;
+                float freq = _StartingFrequency;
+                float speed = _StartingSpeed;
+                float displacement = 0;
+                float angle;
+                float2 direction;
+                for(int j = 0; j < _NumberOfWaves; ++j){
+                    // inner = dot(_SineDirections[j], i.worldPos) * _SineFrequencies[j] + _Time * _SineSpeeds[j];
                     // y' for simple sin wave
                     // df = _SineFrequencies[j] * _SineAmplitudes[j] * cos(inner);
                     // y' for e^sin
-                    df = _SineFrequencies[j] * _SineAmplitudes[j] * pow(2.718282, sin(inner) - 1) * cos(inner);
-                    dfdx += _SineDirections[j].x * df;
-                    dfdz += _SineDirections[j].z * df;
+                    // df = _SineFrequencies[j] * _SineAmplitudes[j] * pow(2.718282, sin(inner) - 1) * cos(inner);
+
+                    // Brownian motion
+                    angle = RandomRange_float(seed.xy, 0, 360);
+                    direction = float2(sin(angle), cos(angle));
+                    seed += float4(seed.zw, 0, 0);
+                    inner = dot(direction, i.worldPos.xz) * freq + _Time * speed;
+                    df = freq * amp * pow(2.7818282, sin(inner) - 1) * cos(inner);
+                    amp *= _AmplitudeFactor;
+                    freq *= _FrequencyFactor;
+                    speed *= _SpeedRamp;
+
+                    dfdx += df * direction.x; //_SineDirections[j].x * df;
+                    dfdz += df * direction.y; //_SineDirections[j].z * df;
                 }
 
                 float3 normal = normalize(float3(-dfdx, 1, -dfdz));
