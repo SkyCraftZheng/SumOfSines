@@ -45,7 +45,7 @@ Shader "Custom/Waves Shader"
             };
 
             Interpolators MyVertexProgram(VertexData v) {
-                float _SineAmplitudes[5]  = {0.21, 0.15, 0.1, 0.18, 0.09};
+                float _SineAmplitudes[5]  = {0.21, 0.15, 0.11, 0.17, 0.09};
                 float _SineFrequencies[5] = {1, 2, 3, 1.3, 2.1};
                 float _SineSpeeds[5] = {30, 40, 50, 34, 42};
                 float3 _SineDirections[5] = {
@@ -59,8 +59,15 @@ Shader "Custom/Waves Shader"
                 float3 position = mul(unity_ObjectToWorld, v.position).xyz;
                 float displacement = 0;
                 for(int j = 0; j < 5; ++j){
+                    // y = alpha * sin(d*(x,z) + t*phi)
+                    /*
                     displacement += _SineAmplitudes[j] * sin(
                         dot(_SineDirections[j], position.xyz) * _SineFrequencies[j] + _Time * _SineSpeeds[j]);
+                    */
+                    // y = alpha * e^(sin(d*(x,z) + t*phi)-1)
+                    displacement += _SineAmplitudes[j] * pow(2.718282, sin(
+                        dot(_SineDirections[j], position.xyz) * _SineFrequencies[j] + _Time * _SineSpeeds[j]
+                    ) - 1);
                 }
                 position.y += displacement;
                 i.worldPos = position;
@@ -71,7 +78,7 @@ Shader "Custom/Waves Shader"
             }
 
             float4 MyFragmentProgram(Interpolators i) : SV_TARGET {
-                float _SineAmplitudes[5]  = {0.21, 0.15, 0.1, 0.18, 0.09};
+                float _SineAmplitudes[5]  = {0.21, 0.15, 0.11, 0.17, 0.09};
                 float _SineFrequencies[5] = {1, 2, 3, 1.3, 2.1};
                 float _SineSpeeds[5] = {30, 40, 50, 34, 42};
                 float3 _SineDirections[5] = {
@@ -80,13 +87,15 @@ Shader "Custom/Waves Shader"
                     normalize(float3(-0.8, 0, 0.2)),
                     normalize(float3(0.1, 0 , 0.9)),
                     normalize(float3(0.3, 0, -0.7))};
-                float df, dfdx, dfdz;
+                float df, dfdx, dfdz, inner;
                 dfdx = 0;
                 dfdz = 0;
                 for(int j = 0; j < 5; ++j){
-                    df = _SineFrequencies[j] * _SineAmplitudes[j] * cos(
-                        dot(_SineDirections[j], i.worldPos) * _SineFrequencies[j] + _Time * _SineSpeeds[j]
-                    );
+                    inner = dot(_SineDirections[j], i.worldPos) * _SineFrequencies[j] + _Time * _SineSpeeds[j];
+                    // y' for simple sin wave
+                    // df = _SineFrequencies[j] * _SineAmplitudes[j] * cos(inner);
+                    // y' for e^sin
+                    df = _SineFrequencies[j] * _SineAmplitudes[j] * pow(2.718282, sin(inner) - 1) * cos(inner);
                     dfdx += _SineDirections[j].x * df;
                     dfdz += _SineDirections[j].z * df;
                 }
