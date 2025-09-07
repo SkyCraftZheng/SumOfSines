@@ -103,7 +103,7 @@ Shader "Custom/Waves Shader"
                     */
 
                     // Brownian motion
-                    angle = RandomRange_float(seed.xy, 0, 360);
+                    angle = RandomRange_float(seed.xy, 0, 6.283185);
                     direction = float2(sin(angle), cos(angle));
                     seed += float4(seed.zw, 0, 0);
                     inner = dot(direction, position.xz + float2(dfdx, dfdz)) * freq + _Time * speed;
