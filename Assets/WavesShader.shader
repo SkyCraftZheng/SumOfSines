@@ -51,6 +51,7 @@ Shader "Custom/Waves Shader"
                 float4 position : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float3 worldPos : TEXCOORD1;
+                float3 normal : NORMAL;
             };
 
             struct VertexData {
@@ -64,6 +65,7 @@ Shader "Custom/Waves Shader"
             }
 
             Interpolators MyVertexProgram(VertexData v) {
+                /*
                 float _SineAmplitudes[5]  = {0.21, 0.15, 0.11, 0.17, 0.09};
                 float _SineFrequencies[5] = {1, 2, 3, 1.3, 2.1};
                 float _SineSpeeds[5] = {30, 40, 50, 34, 42};
@@ -73,10 +75,13 @@ Shader "Custom/Waves Shader"
                     normalize(float3(-0.8, 0, 0.2)),
                     normalize(float3(0.1, 0 , 0.9)),
                     normalize(float3(0.3, 0, -0.7))};
+                    */
 
                 Interpolators i;
                 float3 position = mul(unity_ObjectToWorld, v.position).xyz;
-
+                float df, dfdx, dfdz, inner;
+                dfdx = 0;
+                dfdz = 0;
                 float4 seed = _Seed;
                 float amp = _StartingAmplitude;
                 float freq = _StartingFrequency;
@@ -101,14 +106,19 @@ Shader "Custom/Waves Shader"
                     angle = RandomRange_float(seed.xy, 0, 360);
                     direction = float2(sin(angle), cos(angle));
                     seed += float4(seed.zw, 0, 0);
-                    displacement += amp * pow(2.7818282, sin(dot(direction, position.xz) * freq + _Time * speed) - 1);
+                    inner = dot(direction, position.xz + float2(dfdx, dfdz)) * freq + _Time * speed;
+                    displacement += amp * pow(2.7818282, sin(inner) - 1);
+                    df = freq * amp * pow(2.7818282, sin(inner) - 1) * cos(inner);
                     amp *= _AmplitudeFactor;
                     freq *= _FrequencyFactor;
                     speed *= _SpeedRamp;
 
+                    dfdx += df * direction.x;
+                    dfdz += df * direction.y; 
                 }
                 position.y += displacement;
                 i.worldPos = position;
+                i.normal = normalize(float3(-dfdx, 1, -dfdz));
                 position = mul(unity_WorldToObject, position);
                 i.position = UnityObjectToClipPos(position);
                 i.uv = TRANSFORM_TEX(v.uv, _MainTex);
@@ -116,6 +126,7 @@ Shader "Custom/Waves Shader"
             }
 
             float4 MyFragmentProgram(Interpolators i) : SV_TARGET {
+                /*
                 float _SineAmplitudes[5]  = {0.21, 0.15, 0.11, 0.17, 0.09};
                 float _SineFrequencies[5] = {1, 2, 3, 1.3, 2.1};
                 float _SineSpeeds[5] = {30, 40, 50, 34, 42};
@@ -157,7 +168,9 @@ Shader "Custom/Waves Shader"
                 }
 
                 float3 normal = normalize(float3(-dfdx, 1, -dfdz));
-                
+                */
+                i.normal = normalize(i.normal);
+
                 float3 lightDir = _WorldSpaceLightPos0.xyz;
                 float3 viewDir = normalize(_WorldSpaceCameraPos - i.worldPos);
                 float3 lightColor = _LightColor0.rgb;
@@ -165,7 +178,7 @@ Shader "Custom/Waves Shader"
                 UnityLight light;
 				light.color = lightColor;
 				light.dir = lightDir;
-				light.ndotl = DotClamped(normal, lightDir);
+				light.ndotl = DotClamped(i.normal, lightDir);
                 UnityIndirect indirectLight;
 				indirectLight.diffuse = 0;
 				indirectLight.specular = 0;
@@ -179,7 +192,7 @@ Shader "Custom/Waves Shader"
                 return UNITY_BRDF_PBS(
 					albedo, specularTint,
 					oneMinusReflectivity, _Smoothness,
-					normal, viewDir,
+					i.normal, viewDir,
                     light, indirectLight
 				);
             }
